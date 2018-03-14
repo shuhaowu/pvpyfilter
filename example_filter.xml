@@ -1,0 +1,55 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy class="vtkPythonProgrammableFilter" label="My Example Filter" name="MyExampleFilter">
+      <Documentation long_help="My example filter created using xml.&#10;&#10;It does somethings..." short_help="My example filter"/>
+      <InputProperty name="Input" command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
+        <DataTypeDomain name="input_type">
+          <DataType value="vtkPolyData"/>
+        </DataTypeDomain>
+      </InputProperty>
+      <IntVectorProperty name="many_ints" label="many integers" initial_string="many_ints" command="SetParameter" animateable="1" default_values="0 1 2" number_of_elements="3">
+        <Documentation>many integers</Documentation>
+      </IntVectorProperty>
+      <IntVectorProperty name="int_enum" label="integer based enums" initial_string="int_enum" command="SetParameter" animateable="1" default_values="1" number_of_elements="1">
+        <Documentation>many integers</Documentation>
+        <EnumerationDomain name="enum">
+          <Entry text="value1" value="1"/>
+          <Entry text="value2" value="2"/>
+        </EnumerationDomain>
+      </IntVectorProperty>
+      <DoubleVectorProperty name="double_slider" label="double with slider" initial_string="double_slider" command="SetParameter" animateable="1" default_values="0.5" number_of_elements="1">
+        <Documentation>double with slider</Documentation>
+        <DoubleRangeDomain max="1.0" min="0.0" name="range"/>
+      </DoubleVectorProperty>
+      <StringVectorProperty name="scalar_str" label="scalar string" initial_string="scalar_str" command="SetParameter" animateable="1" default_values="" number_of_elements="1">
+        <Documentation>scalar string</Documentation>
+      </StringVectorProperty>
+      <IntVectorProperty name="boolean" label="boolean variable" initial_string="boolean" command="SetParameter" animateable="1" default_values="0" number_of_elements="1">
+        <BooleanDomain name="bool"/>
+      </IntVectorProperty>
+      <IntVectorProperty command="SetOutputDataSetType" default_values="8" name="OutputDataSetType" number_of_elements="1" panel_visibility="never">
+        <Documentation>The value of this property determines the dataset type for the output of the programmable filter.</Documentation>
+      </IntVectorProperty>
+      <StringVectorProperty command="SetScript" default_values="print(&quot;scalar_str&quot;, scalar_str)&#10;print(&quot;boolean&quot;, boolean)&#10;print(&quot;many_ints&quot;, many_ints)&#10;print(&quot;double_slider&quot;, double_slider)&#10;print(&quot;int_enum&quot;, int_enum &lt;= 1)&#10;" name="Script" number_of_elements="1" panel_visibility="never">
+        <Hints>
+          <Widget type="multi_line"/>
+        </Hints>
+      </StringVectorProperty>
+      <StringVectorProperty command="SetInformationScript" default_values="" label="RequestInformationScript" name="InformationScript" number_of_elements="1" panel_visibility="never">
+        <Hints>
+          <Widget type="multi_line"/>
+        </Hints>
+      </StringVectorProperty>
+      <StringVectorProperty command="SetUpdateExtentScript" default_values="" label="RequestUpdateExtentScript" name="UpdateExtentScript" number_of_elements="1" panel_visibility="never">
+        <Hints>
+          <Widget type="multi_line"/>
+        </Hints>
+      </StringVectorProperty>
+    </SourceProxy>
+  </ProxyGroup>
+</ServerManagerConfiguration>
+
