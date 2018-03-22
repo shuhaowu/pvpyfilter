@@ -392,7 +392,7 @@ class Double(Property):
     """
     super().__init__(*args, **kwargs)
 
-    if type(slider) is not tuple and len(slider) != 2:
+    if slider is not None and type(slider) is not tuple and len(slider) != 2:
       raise TypeError("slider must be a tuple of 2")
 
     self.slider = slider
