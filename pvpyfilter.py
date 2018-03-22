@@ -21,7 +21,8 @@ class ProgrammableFilter(metaclass=ABCMeta):
 
   - [REQUIRED] label:                   the label shown in the filters menu in PV.
   - [REQUIRED] __doc__ (via docstring): the long help message
-  - [REQUIRED] input_data_type:         the input data type (only if number_of_inputs >= 1)
+  - [OPTIONAL] input_data_type:         the input data type
+                                        (default: vtkDataObject)
   - [OPTIONAL] output_data_type:        the output data type
   - [OPTIONAL] short_help:              the short help message
   - [OPTIONAL] number_of_inputs:        the number of inputs the filter takes
@@ -126,7 +127,7 @@ class ProgrammableFilter(metaclass=ABCMeta):
       proxy_group_domain.append(ET.Element("Group", name="filters"))
 
       data_type_domain = ET.Element("DataTypeDomain", name="input_type")
-      data_type_domain.append(ET.Element("DataType", value=cls.input_data_type))
+      data_type_domain.append(ET.Element("DataType", value=getattr(cls, "input_data_type", "vtkDataObject")))
 
       input_property.append(proxy_group_domain)
       input_property.append(data_type_domain)
@@ -153,12 +154,13 @@ class ProgrammableFilter(metaclass=ABCMeta):
     output_data_set_type.append(output_data_set_type_doc)
 
     # Script
+    script_invisible = getattr(cls, "script_invisible", False)
     request_data = ET.Element("StringVectorProperty", {
       "name":               "Script",
       "command":            "SetScript",
       "number_of_elements": "1",
       "default_values":     cls._function_source("request_data"),
-      "panel_visibility":   "never" if getattr(cls, "script_invisible") else "advanced",
+      "panel_visibility":   "never" if script_invisible else "advanced",
     })
     request_data.append(multi_line_hint())
 
@@ -168,7 +170,7 @@ class ProgrammableFilter(metaclass=ABCMeta):
       "command":            "SetInformationScript",
       "number_of_elements": "1",
       "default_values":     cls._function_source("request_information"),
-      "panel_visibility":   "never" if getattr(cls, "script_invisible") else "advanced",
+      "panel_visibility":   "never" if script_invisible else "advanced",
     })
     request_information.append(multi_line_hint())
 
@@ -178,7 +180,7 @@ class ProgrammableFilter(metaclass=ABCMeta):
       "command":            "SetUpdateExtentScript",
       "number_of_elements": "1",
       "default_values":     cls._function_source("request_update_extent"),
-      "panel_visibility":   "never" if getattr(cls, "script_invisible") else "advanced",
+      "panel_visibility":   "never" if script_invisible else "advanced",
     })
     request_update_extent.append(multi_line_hint())
 
