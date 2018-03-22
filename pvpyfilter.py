@@ -29,6 +29,9 @@ class ProgrammableFilter(metaclass=ABCMeta):
                                         (default: 1)
   - [OPTIONAL] script_invisible:        determine if the scritps are invisible
                                         or not (default: False)
+  - [OPTIONAL] copy_arrays:             determine whether or not all cell and
+                                        point arrays from the first input are
+                                        copied to the output (default: False)
 
   classmethod definition:
   - [REQUIRED] def request_data():          Script goes into here.
@@ -138,6 +141,15 @@ class ProgrammableFilter(metaclass=ABCMeta):
       prop.set_name(name)
       properties.append(prop.xml_element())
 
+    copy_arrays_property = ET.Element("IntVectorProperty", {
+      "command": "SetCopyArrays",
+      "default_values": "1" if getattr(cls, "copy_arrays", False) else "0",
+      "name": "CopyArrays",
+      "number_of_elements": "1",
+      "animateable": "0",
+      "panel_visibility": "never",
+    })
+
     # Any custom defined xml
     extra_xml = cls.extra_xml()
 
@@ -197,6 +209,7 @@ class ProgrammableFilter(metaclass=ABCMeta):
     if extra_xml:
       source_proxy.append(extra_xml)
 
+    source_proxy.append(copy_arrays_property)
     source_proxy.append(output_data_set_type)
     source_proxy.append(request_data)
     source_proxy.append(request_information)
