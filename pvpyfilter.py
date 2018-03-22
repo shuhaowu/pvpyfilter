@@ -20,8 +20,8 @@ class ProgrammableFilter(metaclass=ABCMeta):
   Attributes that can be defined on this class:
 
   - [REQUIRED] label:                   the label shown in the filters menu in PV.
-  - [REQUIRED] input_data_type:         the input data type
   - [REQUIRED] __doc__ (via docstring): the long help message
+  - [REQUIRED] input_data_type:         the input data type (only if number_of_inputs >= 1)
   - [OPTIONAL] output_data_type:        the output data type
   - [OPTIONAL] short_help:              the short help message
   - [OPTIONAL] number_of_inputs:        the number of inputs the filter takes
@@ -111,23 +111,25 @@ class ProgrammableFilter(metaclass=ABCMeta):
     })
 
     # Generate InputProperty
-    input_property = ET.Element("InputProperty", name="Input")
-    if number_of_inputs > 1:
-      input_property.set("clean_command", "RemoveAllInputs")
-      input_property.set("command", "AddInputConnection")
-      input_property.set("multiple_input", "1")
-    else:
-      input_property.set("command", "SetInputConnection")
+    if number_of_inputs >= 1:
+      input_property = ET.Element("InputProperty", name="Input")
 
-    proxy_group_domain = ET.Element("ProxyGroupDomain", name="groups")
-    proxy_group_domain.append(ET.Element("Group", name="sources"))
-    proxy_group_domain.append(ET.Element("Group", name="filters"))
+      if number_of_inputs > 1:
+        input_property.set("clean_command", "RemoveAllInputs")
+        input_property.set("command", "AddInputConnection")
+        input_property.set("multiple_input", "1")
+      else:
+        input_property.set("command", "SetInputConnection")
 
-    data_type_domain = ET.Element("DataTypeDomain", name="input_type")
-    data_type_domain.append(ET.Element("DataType", value=cls.input_data_type))
+      proxy_group_domain = ET.Element("ProxyGroupDomain", name="groups")
+      proxy_group_domain.append(ET.Element("Group", name="sources"))
+      proxy_group_domain.append(ET.Element("Group", name="filters"))
 
-    input_property.append(proxy_group_domain)
-    input_property.append(data_type_domain)
+      data_type_domain = ET.Element("DataTypeDomain", name="input_type")
+      data_type_domain.append(ET.Element("DataType", value=cls.input_data_type))
+
+      input_property.append(proxy_group_domain)
+      input_property.append(data_type_domain)
 
     # Generate all the properties xml
     properties = []
@@ -184,7 +186,9 @@ class ProgrammableFilter(metaclass=ABCMeta):
     root.append(proxy_group)
     proxy_group.append(source_proxy)
     source_proxy.append(documentation)
-    source_proxy.append(input_property)
+    if number_of_inputs >= 1:
+      source_proxy.append(input_property)
+
     for property_xml in properties:
       source_proxy.append(property_xml)
 
