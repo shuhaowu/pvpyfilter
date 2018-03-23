@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from collections import OrderedDict
 from enum import Enum
 import inspect
 import textwrap
@@ -13,245 +14,6 @@ def multi_line_hint():
   elem = ET.Element("Hints")
   elem.append(ET.Element("Widget", type="multi_line"))
   return elem
-
-
-class ProgrammableFilter(metaclass=ABCMeta):
-  """
-  Attributes that can be defined on this class:
-
-  - [REQUIRED] label:                   the label shown in the filters menu in PV.
-  - [REQUIRED] __doc__ (via docstring): the long help message
-  - [OPTIONAL] input_data_type:         the input data type
-                                        (default: vtkDataObject)
-  - [OPTIONAL] output_data_type:        the output data type
-  - [OPTIONAL] short_help:              the short help message
-  - [OPTIONAL] number_of_inputs:        the number of inputs the filter takes
-                                        (default: 1)
-  - [OPTIONAL] script_invisible:        determine if the scritps are invisible
-                                        or not (default: False)
-  - [OPTIONAL] copy_arrays:             determine whether or not all cell and
-                                        point arrays from the first input are
-                                        copied to the output (default: False)
-
-  classmethod definition:
-  - [REQUIRED] def request_data():          Script goes into here.
-  - [OPTIONAL] def request_information():   Information goes into here.
-  - [OPTIONAL] def request_update_extent(): Script goes into here.
-  - [OPTIONAL] def extra_xml() -> xml.etree.ElementTree.Element:
-                 Extra XML elements to include
-
-  property definitions are in done in class variables with the Property
-  objects.
-  """
-  DATA_TYPE_MAP = {
-    "":                          "8",  # same as input
-    "vtkPolyData":               "0",
-    "vtkStructuredGrid":         "2",
-    "vtkRectilinearGrid":        "3",
-    "vtkUnstructuredGrid":       "4",
-    "vtkImageData":              "6",
-    "vtkUniformGrid":            "10",
-    "vtkMultiblockDataSet":      "13",
-    "vtkHierarchicalBoxDataSet": "15",
-    "vtkTable":                  "19",
-  }
-
-  @staticmethod
-  @abstractmethod
-  def request_data(inputs, output, *args, **kwargs):
-    """
-    Implement this method in your class to set the Script part of the
-    PythonProgrammableFilter. You can pass in the parameters you defined as
-    argumens to this method so you're not even referring to variables that
-    is not technically defined within the confines of your .py file.
-
-    Note: you cannot access variables using closure or access other methods of
-    the class (or super) as the source code of this function is used directly
-    as the Script of the python programmable filter. There are no easy ways get
-    around this limitation as the script source code is sent to the server to
-    be executed as opposed to the actual python function objects (and
-    associated scopes).
-
-    Further note: if you updated the plugin and already saved a particular
-    PVSM, you have to copy the updated script manually to the saved insance as
-    the pvsm contains a copy of the script as defined here.
-    """
-    pass
-
-  @staticmethod
-  def extra_xml():
-    return None
-
-  @classmethod
-  def properties(cls):
-    properties = []
-    variables = vars(cls)
-    for varname, value in variables.items():
-      if isinstance(value, Property):
-        properties.append((varname, value))
-
-    return properties
-
-  @classmethod
-  def xml_element(cls):
-    number_of_inputs = getattr(cls, "number_of_inputs", 1)
-
-    # Generate the "top level" XML
-    root = ET.Element("ServerManagerConfiguration")
-
-    proxy_group_name = "filters" if number_of_inputs > 0 else "sources"
-    proxy_group = ET.Element("ProxyGroup", name=proxy_group_name)
-
-    source_proxy = ET.Element("SourceProxy", {
-      "name":  cls.__name__,
-      "class": "vtkPythonProgrammableFilter",
-      "label": cls.label,
-    })
-
-    docstr = inspect.cleandoc(cls.__doc__)
-    documentation = ET.Element("Documentation", {
-      "long_help":  docstr,
-      "short_help": getattr(cls, "short_help", docstr),
-    })
-
-    # Generate InputProperty
-    if number_of_inputs >= 1:
-      input_property = ET.Element("InputProperty", name="Input")
-
-      if number_of_inputs > 1:
-        input_property.set("clean_command", "RemoveAllInputs")
-        input_property.set("command", "AddInputConnection")
-        input_property.set("multiple_input", "1")
-      else:
-        input_property.set("command", "SetInputConnection")
-
-      proxy_group_domain = ET.Element("ProxyGroupDomain", name="groups")
-      proxy_group_domain.append(ET.Element("Group", name="sources"))
-      proxy_group_domain.append(ET.Element("Group", name="filters"))
-
-      data_type_domain = ET.Element("DataTypeDomain", name="input_type")
-      data_type_domain.append(ET.Element("DataType", value=getattr(cls, "input_data_type", "vtkDataObject")))
-
-      input_property.append(proxy_group_domain)
-      input_property.append(data_type_domain)
-
-    # Generate all the properties xml
-    properties = []
-    for name, prop in cls.properties():
-      prop.set_name(name)
-      properties.append(prop.xml_element())
-
-    copy_arrays_property = ET.Element("IntVectorProperty", {
-      "command": "SetCopyArrays",
-      "default_values": "1" if getattr(cls, "copy_arrays", False) else "0",
-      "name": "CopyArrays",
-      "number_of_elements": "1",
-      "animateable": "0",
-      "panel_visibility": "never",
-    })
-
-    # Any custom defined xml
-    extra_xml = cls.extra_xml()
-
-    # Output data type
-    output_data_set_type = ET.Element("IntVectorProperty", {
-      "command":            "SetOutputDataSetType",
-      "default_values":     cls.DATA_TYPE_MAP[getattr(cls, "output_data_type", "")],
-      "name":               "OutputDataSetType",
-      "number_of_elements": "1",
-      "panel_visibility":   "never"
-    })
-    output_data_set_type_doc = ET.Element("Documentation")
-    output_data_set_type_doc.text = "The value of this property determines the dataset type for the output of the programmable filter."
-    output_data_set_type.append(output_data_set_type_doc)
-
-    # Script
-    script_invisible = getattr(cls, "script_invisible", False)
-    request_data = ET.Element("StringVectorProperty", {
-      "name":               "Script",
-      "command":            "SetScript",
-      "number_of_elements": "1",
-      "default_values":     cls._function_source("request_data"),
-      "panel_visibility":   "never" if script_invisible else "advanced",
-    })
-    request_data.append(multi_line_hint())
-
-    request_information = ET.Element("StringVectorProperty", {
-      "name":               "InformationScript",
-      "label":              "RequestInformationScript",
-      "command":            "SetInformationScript",
-      "number_of_elements": "1",
-      "default_values":     cls._function_source("request_information"),
-      "panel_visibility":   "never" if script_invisible else "advanced",
-    })
-    request_information.append(multi_line_hint())
-
-    request_update_extent = ET.Element("StringVectorProperty", {
-      "name":               "UpdateExtentScript",
-      "label":              "RequestUpdateExtentScript",
-      "command":            "SetUpdateExtentScript",
-      "number_of_elements": "1",
-      "default_values":     cls._function_source("request_update_extent"),
-      "panel_visibility":   "never" if script_invisible else "advanced",
-    })
-    request_update_extent.append(multi_line_hint())
-
-    # Actually build the xml document
-    root.append(proxy_group)
-    proxy_group.append(source_proxy)
-    source_proxy.append(documentation)
-    if number_of_inputs >= 1:
-      source_proxy.append(input_property)
-
-    for property_xml in properties:
-      source_proxy.append(property_xml)
-
-    if extra_xml:
-      source_proxy.append(extra_xml)
-
-    source_proxy.append(copy_arrays_property)
-    source_proxy.append(output_data_set_type)
-    source_proxy.append(request_data)
-    source_proxy.append(request_information)
-    source_proxy.append(request_update_extent)
-
-    return root
-
-  @classmethod
-  def _function_source(cls, function_name):
-    f = getattr(cls, function_name, None)
-    if not f:
-      return ""
-
-    lines = inspect.getsourcelines(f)[0]
-    if len(lines) <= 1:
-      raise ValueError("classmethod {} must have at least a single line of code".format(function_name))
-
-    found_def_start = False
-    found_def_end = False
-    for i, line in enumerate(lines):
-      line = line.strip()
-      if not found_def_start:
-        if line.startswith("def"):
-          found_def_start = True
-
-      if found_def_start and not found_def_end:
-        if line.endswith(":"):
-          found_def_end = True
-
-      if found_def_start and found_def_end:
-        break
-
-    return textwrap.dedent("".join(lines[i + 1:]))
-
-  @classmethod
-  def xml(cls):
-    return ET.tostring(cls.xml_element(), pretty_print=True)
-
-  @classmethod
-  def save(cls, filename):
-    with open(filename, "w") as f:
-      f.write(cls.xml())
 
 
 class Property(metaclass=ABCMeta):
@@ -424,3 +186,254 @@ class Double(Property):
       root.append(range_element)
 
     return root
+
+
+# PEP 0520 is only available in Python 3.6 and above. This means the properties
+# defined in each filter will not be ordered. This is to make it ordered for
+# everyone.
+class OrderedClass(type):
+  @classmethod
+  def __prepare__(cls, name, bases):
+    return OrderedDict()
+
+  def __new__(cls, name, bases, classdict):
+    result = type.__new__(cls, name, bases, classdict)
+    result.properties = []
+    for varname, value in classdict.items():
+      if isinstance(value, Property):
+        result.properties.append((varname, value))
+
+    return result
+
+
+class ProgrammableFilterMeta(ABCMeta, OrderedClass):
+  pass
+
+
+class ProgrammableFilter(metaclass=ProgrammableFilterMeta):
+  """
+  Attributes that can be defined on this class:
+
+  - [REQUIRED] label:                   the label shown in the filters menu in PV.
+  - [REQUIRED] __doc__ (via docstring): the long help message
+  - [OPTIONAL] input_data_type:         the input data type
+                                        (default: vtkDataObject)
+  - [OPTIONAL] output_data_type:        the output data type
+  - [OPTIONAL] short_help:              the short help message
+  - [OPTIONAL] number_of_inputs:        the number of inputs the filter takes
+                                        (default: 1)
+  - [OPTIONAL] script_invisible:        determine if the scritps are invisible
+                                        or not (default: False)
+  - [OPTIONAL] copy_arrays:             determine whether or not all cell and
+                                        point arrays from the first input are
+                                        copied to the output (default: False)
+
+  classmethod definition:
+  - [REQUIRED] def request_data():          Script goes into here.
+  - [OPTIONAL] def request_information():   Information goes into here.
+  - [OPTIONAL] def request_update_extent(): Script goes into here.
+  - [OPTIONAL] def extra_xml() -> xml.etree.ElementTree.Element:
+                 Extra XML elements to include
+
+  property definitions are in done in class variables with the Property
+  objects.
+  """
+  DATA_TYPE_MAP = {
+    "":                          "8",  # same as input
+    "vtkPolyData":               "0",
+    "vtkStructuredGrid":         "2",
+    "vtkRectilinearGrid":        "3",
+    "vtkUnstructuredGrid":       "4",
+    "vtkImageData":              "6",
+    "vtkUniformGrid":            "10",
+    "vtkMultiblockDataSet":      "13",
+    "vtkHierarchicalBoxDataSet": "15",
+    "vtkTable":                  "19",
+  }
+
+  @staticmethod
+  @abstractmethod
+  def request_data(inputs, output, *args, **kwargs):
+    """
+    Implement this method in your class to set the Script part of the
+    PythonProgrammableFilter. You can pass in the parameters you defined as
+    argumens to this method so you're not even referring to variables that
+    is not technically defined within the confines of your .py file.
+
+    Note: you cannot access variables using closure or access other methods of
+    the class (or super) as the source code of this function is used directly
+    as the Script of the python programmable filter. There are no easy ways get
+    around this limitation as the script source code is sent to the server to
+    be executed as opposed to the actual python function objects (and
+    associated scopes).
+
+    Further note: if you updated the plugin and already saved a particular
+    PVSM, you have to copy the updated script manually to the saved insance as
+    the pvsm contains a copy of the script as defined here.
+    """
+    pass
+
+  @staticmethod
+  def extra_xml():
+    return None
+
+  @classmethod
+  def xml_element(cls):
+    number_of_inputs = getattr(cls, "number_of_inputs", 1)
+
+    # Generate the "top level" XML
+    root = ET.Element("ServerManagerConfiguration")
+
+    proxy_group_name = "filters" if number_of_inputs > 0 else "sources"
+    proxy_group = ET.Element("ProxyGroup", name=proxy_group_name)
+
+    source_proxy = ET.Element("SourceProxy", {
+      "name":  cls.__name__,
+      "class": "vtkPythonProgrammableFilter",
+      "label": cls.label,
+    })
+
+    docstr = inspect.cleandoc(cls.__doc__)
+    documentation = ET.Element("Documentation", {
+      "long_help":  docstr,
+      "short_help": getattr(cls, "short_help", docstr),
+    })
+
+    # Generate InputProperty
+    if number_of_inputs >= 1:
+      input_property = ET.Element("InputProperty", name="Input")
+
+      if number_of_inputs > 1:
+        input_property.set("clean_command", "RemoveAllInputs")
+        input_property.set("command", "AddInputConnection")
+        input_property.set("multiple_input", "1")
+      else:
+        input_property.set("command", "SetInputConnection")
+
+      proxy_group_domain = ET.Element("ProxyGroupDomain", name="groups")
+      proxy_group_domain.append(ET.Element("Group", name="sources"))
+      proxy_group_domain.append(ET.Element("Group", name="filters"))
+
+      data_type_domain = ET.Element("DataTypeDomain", name="input_type")
+      data_type_domain.append(ET.Element("DataType", value=getattr(cls, "input_data_type", "vtkDataObject")))
+
+      input_property.append(proxy_group_domain)
+      input_property.append(data_type_domain)
+
+    # Generate all the properties xml
+    properties = []
+    for name, prop in cls.properties:
+      prop.set_name(name)
+      properties.append(prop.xml_element())
+
+    copy_arrays_property = ET.Element("IntVectorProperty", {
+      "command": "SetCopyArrays",
+      "default_values": "1" if getattr(cls, "copy_arrays", False) else "0",
+      "name": "CopyArrays",
+      "number_of_elements": "1",
+      "animateable": "0",
+      "panel_visibility": "never",
+    })
+
+    # Any custom defined xml
+    extra_xml = cls.extra_xml()
+
+    # Output data type
+    output_data_set_type = ET.Element("IntVectorProperty", {
+      "command":            "SetOutputDataSetType",
+      "default_values":     cls.DATA_TYPE_MAP[getattr(cls, "output_data_type", "")],
+      "name":               "OutputDataSetType",
+      "number_of_elements": "1",
+      "panel_visibility":   "never"
+    })
+    output_data_set_type_doc = ET.Element("Documentation")
+    output_data_set_type_doc.text = "The value of this property determines the dataset type for the output of the programmable filter."
+    output_data_set_type.append(output_data_set_type_doc)
+
+    # Script
+    script_invisible = getattr(cls, "script_invisible", False)
+    request_data = ET.Element("StringVectorProperty", {
+      "name":               "Script",
+      "command":            "SetScript",
+      "number_of_elements": "1",
+      "default_values":     cls._function_source("request_data"),
+      "panel_visibility":   "never" if script_invisible else "advanced",
+    })
+    request_data.append(multi_line_hint())
+
+    request_information = ET.Element("StringVectorProperty", {
+      "name":               "InformationScript",
+      "label":              "RequestInformationScript",
+      "command":            "SetInformationScript",
+      "number_of_elements": "1",
+      "default_values":     cls._function_source("request_information"),
+      "panel_visibility":   "never" if script_invisible else "advanced",
+    })
+    request_information.append(multi_line_hint())
+
+    request_update_extent = ET.Element("StringVectorProperty", {
+      "name":               "UpdateExtentScript",
+      "label":              "RequestUpdateExtentScript",
+      "command":            "SetUpdateExtentScript",
+      "number_of_elements": "1",
+      "default_values":     cls._function_source("request_update_extent"),
+      "panel_visibility":   "never" if script_invisible else "advanced",
+    })
+    request_update_extent.append(multi_line_hint())
+
+    # Actually build the xml document
+    root.append(proxy_group)
+    proxy_group.append(source_proxy)
+    source_proxy.append(documentation)
+    if number_of_inputs >= 1:
+      source_proxy.append(input_property)
+
+    for property_xml in properties:
+      source_proxy.append(property_xml)
+
+    if extra_xml:
+      source_proxy.append(extra_xml)
+
+    source_proxy.append(copy_arrays_property)
+    source_proxy.append(output_data_set_type)
+    source_proxy.append(request_data)
+    source_proxy.append(request_information)
+    source_proxy.append(request_update_extent)
+
+    return root
+
+  @classmethod
+  def _function_source(cls, function_name):
+    f = getattr(cls, function_name, None)
+    if not f:
+      return ""
+
+    lines = inspect.getsourcelines(f)[0]
+    if len(lines) <= 1:
+      raise ValueError("classmethod {} must have at least a single line of code".format(function_name))
+
+    found_def_start = False
+    found_def_end = False
+    for i, line in enumerate(lines):
+      line = line.strip()
+      if not found_def_start:
+        if line.startswith("def"):
+          found_def_start = True
+
+      if found_def_start and not found_def_end:
+        if line.endswith(":"):
+          found_def_end = True
+
+      if found_def_start and found_def_end:
+        break
+
+    return textwrap.dedent("".join(lines[i + 1:]))
+
+  @classmethod
+  def xml(cls):
+    return ET.tostring(cls.xml_element(), pretty_print=True)
+
+  @classmethod
+  def save(cls, filename):
+    with open(filename, "w") as f:
+      f.write(cls.xml())
