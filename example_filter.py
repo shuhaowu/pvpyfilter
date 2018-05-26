@@ -16,6 +16,7 @@ class MyExampleFilter(ProgrammableFilter):
   """
 
   label            = "My Example Filter"
+  # input_data_type can also be a list, e.g. ["vtkPolyData", "vtkUnstructuredGrid"]
   input_data_type  = "vtkPolyData"
   output_data_type = ""
   short_help       = "My example filter"

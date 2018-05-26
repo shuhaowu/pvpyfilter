@@ -315,7 +315,12 @@ class ProgrammableFilter(metaclass=ProgrammableFilterMeta):
       proxy_group_domain.append(ET.Element("Group", name="filters"))
 
       data_type_domain = ET.Element("DataTypeDomain", name="input_type")
-      data_type_domain.append(ET.Element("DataType", value=getattr(cls, "input_data_type", "vtkDataObject")))
+      input_data_types = getattr(cls, "input_data_type", "vtkDataObject")
+      if isinstance(input_data_types, list):
+        for idt in input_data_types:
+          data_type_domain.append(ET.Element("DataType", value=idt))
+      else:
+        data_type_domain.append(ET.Element("DataType", value=input_data_types))
 
       input_property.append(proxy_group_domain)
       input_property.append(data_type_domain)
