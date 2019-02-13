@@ -247,6 +247,7 @@ class ProgrammableFilter(metaclass=ProgrammableFilterMeta):
     "vtkImageData":              "6",
     "vtkUniformGrid":            "10",
     "vtkMultiblockDataSet":      "13",
+    "vtkMultiPieceDataSet":      "25",
     "vtkHierarchicalBoxDataSet": "15",
     "vtkTable":                  "19",
   }
