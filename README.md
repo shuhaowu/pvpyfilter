@@ -1,6 +1,12 @@
 pvpyfilter
 ==========
 
+**Note: in PV 5.6+, there seem to be capability to directly import a .py file
+as a plugin. I've personally not tested it and don't know if it can replace
+this library, but if it does, the documentation seem to be here:
+https://kitware.github.io/paraview-docs/latest/python/paraview.util.vtkAlgorithm.html**.
+
+
 pvpyfilter is a library that allows you to define a programmable filter via a
 python file. A XML file can be generated from this python file and imported
 into paraview, where GUI options will be displayed for the filter.
